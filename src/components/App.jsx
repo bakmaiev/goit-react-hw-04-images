@@ -1,4 +1,4 @@
-import React, { Component } from 'react';
+import React, { useEffect, useState } from 'react';
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import { Searchbar } from './Searchbar';
@@ -8,112 +8,83 @@ import { Loader } from './Loader';
 import { Button } from './Button';
 import { StyledAppComponent } from './App.styled';
 
-export class App extends Component {
-  state = {
-    images: [],
-    value: '',
-    page: 1,
-    isLoading: false,
-    totalImages: 0,
-  };
+export const App = () => {
+  const [images, setImages] = useState([]);
+  const [value, setValue] = useState('');
+  const [page, setPage] = useState(1);
+  const [isLoading, setIsLoading] = useState(false);
+  const [totalImages, setTotalImages] = useState(0);
 
-  componentDidUpdate(_, prevState) {
-    const prevValue = prevState.value;
-    const nextValue = this.state.value;
+  useEffect(() => {
+    const getCards = async () => {
+      try {
+        setIsLoading(true);
 
-    if (nextValue.toLowerCase() !== prevValue.toLowerCase()) {
-      this.getCards();
-    }
+        const { data } = await fetchCard(value, page);
 
-    if (prevState.page < this.state.page) {
-      this.getCards();
-    }
+        if (data.totalHits === 0) {
+          toast.error(
+            'Sorry, there are no images matching your search query. Please try again.'
+          );
+        }
 
-    if (this.state.page > 1) {
-      setTimeout(() => {
-        window.scrollBy({
-          top: 500,
-          behavior: 'smooth',
-        });
-      }, 200);
-    }
-  }
+        if (!hasMoreImages(page, data.totalHits) && data.totalHits !== 0) {
+          toast.info(
+            "We're sorry, but you've reached the end of search results."
+          );
+        }
 
-  getCards = async () => {
-    const { value, page } = this.state;
-
-    try {
-      this.setState({ isLoading: true });
-
-      const { data } = await fetchCard(value, page);
-
-      if (data.totalHits === 0) {
-        toast.error(
-          'Sorry, there are no images matching your search query. Please try again.'
+        setImages(prevState =>
+          page === 1 ? data.hits : [...prevState, ...data.hits]
         );
-      }
+        setTotalImages(data.totalHits);
 
-      if (!hasMoreImages(page, data.totalHits) && data.totalHits !== 0) {
-        toast.info(
-          "We're sorry, but you've reached the end of search results."
-        );
+        if (page > 1) {
+          setTimeout(() => {
+            window.scrollBy({
+              top: 500,
+              behavior: 'smooth',
+            });
+          }, 200);
+        }
+      } catch (err) {
+        console.log(err);
+        toast.error(err.message);
+      } finally {
+        setIsLoading(false);
       }
+    };
 
-      this.setState(prevState => ({
-        images: page === 1 ? data.hits : [...prevState.images, ...data.hits],
-        totalImages: data.totalHits,
-      }));
-    } catch (err) {
-      console.log(err);
-      toast.error(err.message);
-    } finally {
-      this.setState({ isLoading: false });
-    }
+    value && getCards();
+  }, [value, page]);
+
+  const handleLoadMore = () => {
+    setPage(prevState => prevState + 1);
   };
 
-  handleLoadMore = () => {
-    this.setState(prevState => ({
-      page: prevState.page + 1,
-    }));
-  };
-
-  handleFormSubmit = value => {
-    if (value.toLowerCase() === this.state.value.toLowerCase()) {
+  const handleFormSubmit = el => {
+    if (el.toLowerCase() === value.toLowerCase()) {
       toast.info(
         `We already found '${value.toLowerCase()}'! Enter something different.`
       );
       return;
     }
-    this.setState({
-      value: value,
-      page: 1,
-      images: [],
-      totalImages: 0,
-    });
+    setValue(el);
+    setPage(1);
+    setImages([]);
+    setTotalImages(0);
   };
 
-  handleImageClick = () => {
-    this.toggleModal();
-  };
-
-  toggleModal = () => {
-    this.setState(({ isShowModal }) => ({
-      isShowModal: !isShowModal,
-    }));
-  };
-
-  render() {
-    const { images, isLoading, totalImages, page } = this.state;
-    return (
-      <StyledAppComponent>
-        <Searchbar onSubmit={this.handleFormSubmit} />
-        {isLoading && <Loader />}
-        {images && <ImageGallery data={this.state.images} />}
-        {isLoading === false && hasMoreImages(page, totalImages) && (
-          <Button onClick={this.handleLoadMore} />
-        )}
-        <ToastContainer />
-      </StyledAppComponent>
-    );
-  }
-}
+  return (
+    <StyledAppComponent>
+      <Searchbar onSubmit={handleFormSubmit} />
+      {isLoading && page === 1 && <Loader />}
+      {images && <ImageGallery data={images} />}
+      {isLoading === false && hasMoreImages(page, totalImages) && (
+        <Button onClick={handleLoadMore} />
+      )}
+      {isLoading && page !== 1 && <Loader />}
+      <ToastContainer />
+    </StyledAppComponent>
+  );
+};
