@@ -21,8 +21,8 @@ export const fetchCard = async (imageName, page) => {
         per_page: options.per_page,
       },
     });
-  } catch (err) {
-    throw new Error(err.message);
+  } catch (error) {
+    throw new Error(error.message);
   }
 };
 
